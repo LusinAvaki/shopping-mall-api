@@ -1,45 +1,41 @@
-import { Controller, Get, Post, Body, Param, Delete } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param } from '@nestjs/common';
 import { ProductsService } from './products.service';
-import { Product } from './models/product.model';
 
 @Controller('products')
 export class ProductsController {
-  constructor(private readonly productsService: ProductsService) {}
+  constructor(private productsService: ProductsService) {}
 
   @Post()
-  create(@Body() productData: any) {
-    const { title, description, SKU, price, categoryId } = productData;
-    const newProduct = new Product(
-      this.productsService.findAll().length + 1,
+  async create(
+    @Body('title') title: string,
+    @Body('description') description: string,
+    @Body('SKU') SKU: string,
+    @Body('price') price: number,
+    @Body('categoryId') categoryId: number,
+  ) {
+    return this.productsService.create(
       title,
       description,
       SKU,
       price,
       categoryId,
     );
-    this.productsService.create(newProduct);
-    return newProduct;
   }
 
   @Get()
-  findAll() {
+  async findAll() {
     return this.productsService.findAll();
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    const product = this.productsService.findOne(+id);
+  async findOne(@Param('id') id: string) {
+    const product = await this.productsService.findOne(id);
     if (product) {
-      return {
-        ...product,
-        category: this.productsService.findCategory(product.categoryId),
-      };
+      const category = await this.productsService.findCategory(
+        (await product).categoryId,
+      );
+      return { product, category };
     }
     return null;
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    this.productsService.remove(+id);
   }
 }

@@ -1,40 +1,53 @@
-import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
-import { Product } from './models/product.model';
-import { Category } from './models/category.model';
+import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Product } from '../schemas/product.schema';
+import { Category } from '../schemas/category.schema';
+import { CategoriesService } from '../categories/categories.service';
 
 @Injectable()
 export class ProductsService {
-  private categories: Category[] = [
-    new Category(1, 'Sweets', 'candies'),
-    new Category(2, 'Books', 'psychology'),
-  ];
+  constructor(
+    @InjectModel('Product') private readonly productModel: Model<Product>,
+    private readonly categoriesService: CategoriesService,
+  ) {}
 
-  private products: Product[] = [];
-
-  findAll(): Product[] {
-    return this.products;
-  }
-
-  findOne(id: number): Product {
-    return this.products.find(product => product.id === id);
-  }
-
-  create(product: Product) {
-    if (!/^[a-zA-Z0-9]{8}$/.test(product.SKU)) {
+  async create(
+    title: string,
+    description: string,
+    SKU: string,
+    price: number,
+    categoryId: number,
+  ): Promise<Product> {
+    const category = await this.categoriesService.findOne(categoryId);
+    if (!category) {
+      throw new BadRequestException('Category not found');
+    }
+    if (!/^[a-zA-Z0-9]{8}$/.test(SKU)) {
       throw new BadRequestException('SKU must be alpha-numeric and exactly 8 characters long');
     }
-
-    if (this.products.find(p => p.SKU === product.SKU)) {
+    const existingProduct = await this.productModel.findOne({ SKU }).exec();
+    if (existingProduct) {
       throw new ConflictException('SKU must be unique');
     }
-    this.products.push(product);
+
+    const createdProduct = new this.productModel({ title, description, SKU, price, categoryId });
+    return createdProduct.save();
   }
 
-  remove(id: number) {
-    this.products = this.products.filter(product => product.id !== id);
+  async findAll(): Promise<Product[]> {
+    return this.productModel.find().exec();
   }
 
-  findCategory(id: number): Category {
-    return this.categories.find(category => category.id === id);
+  async findOne(id: string): Promise<Product> {
+    const product = await this.productModel.findById(id).exec();
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+    return product;
+  }
+
+  async findCategory(categoryId: number): Promise<Category | null> {
+    return await this.categoriesService.findOne(categoryId);
   }
 }
